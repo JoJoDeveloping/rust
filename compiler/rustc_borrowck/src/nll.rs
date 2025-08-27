@@ -7,11 +7,12 @@ use std::str::FromStr;
 
 use polonius_engine::{Algorithm, AllFacts, Output};
 use rustc_data_structures::frozen::Frozen;
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_index::IndexSlice;
 use rustc_middle::mir::pretty::{PrettyPrintMirOptions, dump_mir_with_options};
 use rustc_middle::mir::{Body, PassWhere, Promoted, create_dump_file, dump_enabled, dump_mir};
 use rustc_middle::ty::print::with_no_trimmed_paths;
-use rustc_middle::ty::{self, TyCtxt};
+use rustc_middle::ty::{self, RegionVid, TyCtxt};
 use rustc_mir_dataflow::move_paths::MoveData;
 use rustc_mir_dataflow::points::DenseLocationMap;
 use rustc_session::config::MirIncludeSpans;
@@ -19,7 +20,7 @@ use rustc_span::sym;
 use tracing::{debug, instrument};
 
 use crate::borrow_set::BorrowSet;
-use crate::consumers::RustcFacts;
+use crate::consumers::{DetailedRegionOrigin, RustcFacts};
 use crate::diagnostics::RegionErrors;
 use crate::handle_placeholders::compute_sccs_applying_placeholder_outlives_constraints;
 use crate::polonius::legacy::{
@@ -195,7 +196,15 @@ pub(super) fn dump_nll_mir<'tcx>(
         &0,
         body,
         |pass_where, out| {
-            emit_nll_mir(tcx, regioncx, closure_region_requirements, borrow_set, pass_where, out)
+            emit_nll_mir(
+                tcx,
+                regioncx,
+                closure_region_requirements,
+                borrow_set,
+                pass_where,
+                &*infcx.reg_var_to_extra_info.borrow(),
+                out,
+            )
         },
         options,
     );
@@ -220,12 +229,13 @@ pub(crate) fn emit_nll_mir<'tcx>(
     closure_region_requirements: &Option<ClosureRegionRequirements<'tcx>>,
     borrow_set: &BorrowSet<'tcx>,
     pass_where: PassWhere,
+    extra_data: &FxIndexMap<RegionVid, DetailedRegionOrigin<'tcx>>,
     out: &mut dyn io::Write,
 ) -> io::Result<()> {
     match pass_where {
         // Before the CFG, dump out the values for each region variable.
         PassWhere::BeforeCFG => {
-            regioncx.dump_mir(tcx, out)?;
+            regioncx.dump_mir(tcx, extra_data, out)?;
             writeln!(out, "|")?;
 
             if let Some(closure_region_requirements) = closure_region_requirements {

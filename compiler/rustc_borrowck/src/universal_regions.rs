@@ -29,14 +29,15 @@ use rustc_infer::infer::NllRegionVariableOrigin;
 use rustc_macros::extension;
 use rustc_middle::ty::print::with_no_trimmed_paths;
 use rustc_middle::ty::{
-    self, GenericArgs, GenericArgsRef, InlineConstArgs, InlineConstArgsParts, RegionVid, Ty,
-    TyCtxt, TypeFoldable, TypeVisitableExt, fold_regions,
+    self, GenericArgs, GenericArgsRef, InlineConstArgs, InlineConstArgsParts, LateParamRegionKind,
+    RegionVid, Ty, TyCtxt, TypeFoldable, TypeVisitableExt, fold_regions,
 };
 use rustc_middle::{bug, span_bug};
 use rustc_span::{ErrorGuaranteed, kw, sym};
 use tracing::{debug, instrument};
 
 use crate::BorrowckInferCtxt;
+use crate::consumers::DetailedRegionOrigin;
 use crate::renumber::RegionCtxt;
 
 #[derive(Debug)]
@@ -466,6 +467,10 @@ impl<'cx, 'tcx> UniversalRegionsBuilder<'cx, 'tcx> {
         // Create the "global" region that is always free in all contexts: 'static.
         let fr_static =
             self.infcx.next_nll_region_var(FR, || RegionCtxt::Free(kw::Static)).as_var();
+        self.infcx
+            .reg_var_to_extra_info
+            .borrow_mut()
+            .insert(fr_static, DetailedRegionOrigin::Static);
 
         // We've now added all the global regions. The next ones we
         // add will be external.
@@ -476,6 +481,26 @@ impl<'cx, 'tcx> UniversalRegionsBuilder<'cx, 'tcx> {
 
         let mut indices = self.compute_indices(fr_static, defining_ty);
         debug!("build: indices={:?}", indices);
+
+        for (&region, &vid) in indices.indices.iter() {
+            match self.infcx.reg_var_to_extra_info.borrow_mut().get_mut(&vid) {
+                Some(DetailedRegionOrigin::Static) if vid == fr_static => continue,
+                _ if vid == fr_static => unreachable!(),
+                Some(DetailedRegionOrigin::FreeUniversalEarlyBound {
+                    idx: _,
+                    region: rg @ None,
+                }) => {
+                    *rg = Some(region);
+                    // println!(
+                    //     "Assigned {vid:?} to FreeUniversalEarlyBound {idx} {region:?} (was None)"
+                    // );
+                }
+                Some(_) => unreachable!(),
+                None => panic!(
+                    "Region {vid:?} should be FreeUniversalEarlyBound but was unassigned, how did it end up in indices?"
+                ),
+            }
+        }
 
         let typeck_root_def_id = self.infcx.tcx.typeck_root_def_id(self.mir_def.to_def_id());
 
@@ -503,6 +528,10 @@ impl<'cx, 'tcx> UniversalRegionsBuilder<'cx, 'tcx> {
 
                     debug!(?region_vid);
                     indices.insert_late_bound_region(r, region_vid.as_var());
+                    self.infcx.reg_var_to_extra_info.borrow_mut().insert(
+                        region_vid.as_var(),
+                        DetailedRegionOrigin::RecursiveScopeUniversal { region: r },
+                    );
                 },
             );
 
@@ -528,6 +557,17 @@ impl<'cx, 'tcx> UniversalRegionsBuilder<'cx, 'tcx> {
                 };
 
                 debug!(?region_vid);
+                let x = self.infcx.reg_var_to_extra_info.borrow_mut().insert(
+                    region_vid.as_var(),
+                    if matches!(kind, LateParamRegionKind::ClosureEnv) {
+                        DetailedRegionOrigin::ClosureEnv
+                    } else {
+                        DetailedRegionOrigin::FreeUniversalLateBound {
+                            idx: ty::BoundVar::from_usize(idx),
+                        }
+                    },
+                );
+                assert!(x.is_none());
                 indices.insert_late_bound_region(r, region_vid.as_var());
             }
         }
@@ -564,11 +604,21 @@ impl<'cx, 'tcx> UniversalRegionsBuilder<'cx, 'tcx> {
                 unnormalized_input_tys = self.infcx.tcx.mk_type_list_from_iter(
                     unnormalized_input_tys.iter().copied().chain(iter::once(va_list_ty)),
                 );
+
+                self.infcx
+                    .reg_var_to_extra_info
+                    .borrow_mut()
+                    .insert(reg_vid, DetailedRegionOrigin::CVariadics);
             }
         }
 
         let fr_fn_body =
             self.infcx.next_nll_region_var(FR, || RegionCtxt::Free(sym::fn_body)).as_var();
+
+        self.infcx
+            .reg_var_to_extra_info
+            .borrow_mut()
+            .insert(fr_fn_body, DetailedRegionOrigin::FnBodyUniversal);
 
         let num_universals = self.infcx.num_region_vars();
 
@@ -860,11 +910,18 @@ impl<'tcx> BorrowckInferCtxt<'tcx> {
     where
         T: TypeFoldable<TyCtxt<'tcx>>,
     {
+        let mut idx = 0;
         fold_regions(self.infcx.tcx, value, |region, _depth| {
             let name = region.get_name_or_anon(self.infcx.tcx);
             debug!(?region, ?name);
 
-            self.next_nll_region_var(origin, || RegionCtxt::Free(name))
+            let ll = self.next_nll_region_var(origin, || RegionCtxt::Free(name));
+            self.reg_var_to_extra_info.borrow_mut().insert(
+                ll.as_var(),
+                DetailedRegionOrigin::FreeUniversalEarlyBound { idx, region: None },
+            );
+            idx += 1;
+            ll
         })
     }
 

@@ -12,6 +12,7 @@ use rustc_session::config::MirIncludeSpans;
 
 use crate::borrow_set::BorrowSet;
 use crate::constraints::OutlivesConstraint;
+use crate::consumers::DetailedRegionOrigin;
 use crate::polonius::{
     LocalizedOutlivesConstraint, LocalizedOutlivesConstraintSet, PoloniusDiagnosticsContext,
 };
@@ -49,6 +50,7 @@ pub(crate) fn dump_polonius_mir<'tcx>(
             borrow_set,
             &polonius_diagnostics.localized_outlives_constraints,
             closure_region_requirements,
+            &*infcx.reg_var_to_extra_info.borrow(),
             &mut file,
         )?;
     };
@@ -67,6 +69,7 @@ fn emit_polonius_dump<'tcx>(
     borrow_set: &BorrowSet<'tcx>,
     localized_outlives_constraints: &LocalizedOutlivesConstraintSet,
     closure_region_requirements: &Option<ClosureRegionRequirements<'tcx>>,
+    extra_data: &FxIndexMap<RegionVid, DetailedRegionOrigin<'tcx>>,
     out: &mut dyn io::Write,
 ) -> io::Result<()> {
     // Prepare the HTML dump file prologue.
@@ -86,6 +89,7 @@ fn emit_polonius_dump<'tcx>(
         borrow_set,
         &localized_outlives_constraints,
         closure_region_requirements,
+        extra_data,
         out,
     )?;
     writeln!(out, "</code></pre>")?;
@@ -155,6 +159,7 @@ fn emit_html_mir<'tcx>(
     borrow_set: &BorrowSet<'tcx>,
     localized_outlives_constraints: &LocalizedOutlivesConstraintSet,
     closure_region_requirements: &Option<ClosureRegionRequirements<'tcx>>,
+    extra_data: &FxIndexMap<RegionVid, DetailedRegionOrigin<'tcx>>,
     out: &mut dyn io::Write,
 ) -> io::Result<()> {
     // Buffer the regular MIR dump to be able to escape it.
@@ -183,6 +188,7 @@ fn emit_html_mir<'tcx>(
                 borrow_set,
                 localized_outlives_constraints,
                 pass_where,
+                extra_data,
                 out,
             )
         },
@@ -218,6 +224,7 @@ fn emit_polonius_mir<'tcx>(
     borrow_set: &BorrowSet<'tcx>,
     localized_outlives_constraints: &LocalizedOutlivesConstraintSet,
     pass_where: PassWhere,
+    extra_data: &FxIndexMap<RegionVid, DetailedRegionOrigin<'tcx>>,
     out: &mut dyn io::Write,
 ) -> io::Result<()> {
     // Emit the regular NLL front-matter
@@ -227,6 +234,7 @@ fn emit_polonius_mir<'tcx>(
         closure_region_requirements,
         borrow_set,
         pass_where,
+        extra_data,
         out,
     )?;
 

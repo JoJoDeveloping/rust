@@ -5,10 +5,12 @@
 
 use std::io::{self, Write};
 
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_infer::infer::NllRegionVariableOrigin;
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{RegionVid, TyCtxt};
 
 use super::{OutlivesConstraint, RegionInferenceContext};
+use crate::consumers::DetailedRegionOrigin;
 use crate::type_check::Locations;
 
 // Room for "'_#NNNNr" before things get misaligned.
@@ -18,7 +20,12 @@ const REGION_WIDTH: usize = 8;
 
 impl<'tcx> RegionInferenceContext<'tcx> {
     /// Write out our state into the `.mir` files.
-    pub(crate) fn dump_mir(&self, tcx: TyCtxt<'tcx>, out: &mut dyn Write) -> io::Result<()> {
+    pub(crate) fn dump_mir(
+        &self,
+        tcx: TyCtxt<'tcx>,
+        extra_data: &FxIndexMap<RegionVid, DetailedRegionOrigin<'tcx>>,
+        out: &mut dyn Write,
+    ) -> io::Result<()> {
         writeln!(out, "| Free Region Mapping")?;
 
         for region in self.regions() {
@@ -41,9 +48,13 @@ impl<'tcx> RegionInferenceContext<'tcx> {
         writeln!(out, "|")?;
         writeln!(out, "| Inferred Region Values")?;
         for region in self.regions() {
+            let ei = match extra_data.get(&region) {
+                Some(x) => format!(" | {x:?}"),
+                None => format!(""),
+            };
             writeln!(
                 out,
-                "| {r:rw$?} | {ui:4?} | {v}",
+                "| {r:rw$?} | {ui:4?} | {v}{ei}",
                 r = region,
                 rw = REGION_WIDTH,
                 ui = self.max_nameable_universe(self.constraint_sccs.scc(region)),

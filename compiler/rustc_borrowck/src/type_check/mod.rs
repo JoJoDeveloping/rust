@@ -800,14 +800,22 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
                         RegionCtxt::LateBound(reg_info)
                     };
 
-                    self.infcx.next_region_var(
+                    let rvar = self.infcx.next_region_var(
                         RegionVariableOrigin::BoundRegion(
                             term.source_info.span,
                             br.kind,
                             BoundRegionConversionTime::FnCall,
                         ),
                         region_ctxt_fn,
-                    )
+                    );
+                    self.infcx.reg_var_to_extra_info.borrow_mut().insert(
+                        rvar.as_var(),
+                        crate::consumers::DetailedRegionOrigin::LateBoundCallLifetime {
+                            call: term_location,
+                            replaced: br.var,
+                        },
+                    );
+                    rvar
                 });
                 debug!(?unnormalized_sig);
                 // IMPORTANT: We have to prove well formed for the function signature before

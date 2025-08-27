@@ -53,7 +53,7 @@ use smallvec::SmallVec;
 use tracing::{debug, instrument};
 
 use crate::borrow_set::{BorrowData, BorrowSet};
-use crate::consumers::BodyWithBorrowckFacts;
+use crate::consumers::{BodyWithBorrowckFacts, DetailedRegionOrigin};
 use crate::dataflow::{BorrowIndex, Borrowck, BorrowckDomain, Borrows};
 use crate::diagnostics::{
     AccessKind, BorrowckDiagnosticsBuffer, IllegalMoveOriginKind, MoveError, RegionName,
@@ -538,6 +538,7 @@ fn do_mir_borrowck<'tcx>(
                 location_table: polonius_input.as_ref().map(|_| location_table),
                 input_facts: polonius_input,
                 output_facts: polonius_output,
+                extra_info: infcx.reg_var_to_extra_info.take(),
             },
         );
     }
@@ -593,6 +594,8 @@ pub(crate) struct BorrowckInferCtxt<'tcx> {
     pub(crate) root_def_id: LocalDefId,
     pub(crate) param_env: ParamEnv<'tcx>,
     pub(crate) reg_var_to_origin: RefCell<FxIndexMap<ty::RegionVid, RegionCtxt>>,
+    pub(crate) reg_var_to_extra_info:
+        RefCell<FxIndexMap<ty::RegionVid, DetailedRegionOrigin<'tcx>>>,
 }
 
 impl<'tcx> BorrowckInferCtxt<'tcx> {
@@ -609,6 +612,7 @@ impl<'tcx> BorrowckInferCtxt<'tcx> {
             root_def_id,
             reg_var_to_origin: RefCell::new(Default::default()),
             param_env,
+            reg_var_to_extra_info: RefCell::new(Default::default()),
         }
     }
 

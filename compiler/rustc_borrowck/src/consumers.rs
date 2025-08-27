@@ -1,11 +1,11 @@
 //! This file provides API for compiler consumers.
 
-use rustc_data_structures::fx::FxHashMap;
+use rustc_data_structures::fx::{FxHashMap, FxIndexMap};
 use rustc_hir::def_id::LocalDefId;
 use rustc_index::IndexVec;
 use rustc_middle::bug;
-use rustc_middle::mir::{Body, Promoted};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::mir::{Body, Location, Promoted};
+use rustc_middle::ty::{BoundVar, Region, RegionVid, TyCtxt};
 
 pub use super::borrow_set::{BorrowData, BorrowSet, TwoPhaseActivation};
 pub use super::constraints::OutlivesConstraint;
@@ -77,6 +77,38 @@ pub enum ConsumerOptions {
     PoloniusOutputFacts,
 }
 
+/// Provides detailed information about the origin of
+/// regions. This is collected for the lifetime_end pass.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum DetailedRegionOrigin<'tcx> {
+    /// This region is from a `Call` terminator, in which instantiates
+    /// a late-bound lifetime. E.g. in `for <'a> fn(&'a ...)`, it is `'a`.
+    LateBoundCallLifetime {
+        /// The location of the call
+        call: Location,
+        /// The how-manyth lifetime in the `for <'a, 'b, ... 'n>` binder.
+        replaced: BoundVar,
+    },
+    /// A early-bound lifetime. The `idx` correspond to the how-manyth region it is when you call `fold_regions`
+    /// on the body's `defining_ty`. The `region` might be missing.
+    FreeUniversalEarlyBound { idx: usize, region: Option<Region<'tcx>> },
+    /// A late-bound lifetime. The `idx : BoundVar` is one of the binders from the `defining_ty` of the body.
+    FreeUniversalLateBound { idx: BoundVar },
+    /// The (implicit) lifetime of the closure environment.
+    /// See `BoundRegionKind::ClosureEnv`.
+    ClosureEnv,
+    /// The lifetime of the function itself. This lifetime is outlived by all
+    /// universal regions and only there for technical purposes
+    FnBodyUniversal,
+    /// The lifetime of the variadic list for C variadic functions.
+    CVariadics,
+    /// In a contained body, this indicates a parent region. For example a late-bound
+    /// lifetime of a function when referred to from a closure inside that function.
+    RecursiveScopeUniversal { region: Region<'tcx> },
+    /// The static lifetime
+    Static,
+}
+
 /// A `Body` with information computed by the borrow checker. This struct is
 /// intended to be consumed by compiler consumers.
 ///
@@ -103,6 +135,8 @@ pub struct BodyWithBorrowckFacts<'tcx> {
     /// Polonius output facts. Populated when using
     /// [`ConsumerOptions::PoloniusOutputFacts`].
     pub output_facts: Option<Box<PoloniusOutput>>,
+    /// Detailed lifetime description for consumers.
+    pub extra_info: FxIndexMap<RegionVid, DetailedRegionOrigin<'tcx>>,
 }
 
 /// This function computes borrowck facts for the given def id and all its nested bodies.
