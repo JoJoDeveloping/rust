@@ -2365,6 +2365,9 @@ options! {
         "the directory metrics emitted by rustc are dumped into (implicitly enables default set of metrics)"),
     min_function_alignment: Option<Align> = (None, parse_align, [TRACKED],
         "align all functions to at least this many bytes. Must be a power of 2"),
+    mir_emit_lifetime_information: bool = (false, parse_bool, [TRACKED],
+        "emit LifetimeEnd MIR statements conveying lifetime information, interpreted e.g., by miri; implies -Zmir-opt-level=0 \
+        (default: no)"),
     mir_emit_retag: bool = (false, parse_bool, [TRACKED],
         "emit Retagging MIR statements, interpreted e.g., by miri; implies -Zmir-opt-level=0 \
         (default: no)"),

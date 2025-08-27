@@ -157,17 +157,25 @@ pub struct BodyWithBorrowckFacts<'tcx> {
 pub fn get_bodies_with_borrowck_facts(
     tcx: TyCtxt<'_>,
     root_def_id: LocalDefId,
+    def_id_of_interest: Option<LocalDefId>,
     options: ConsumerOptions,
 ) -> FxHashMap<LocalDefId, BodyWithBorrowckFacts<'_>> {
     let mut root_cx =
         BorrowCheckRootCtxt::new(tcx, root_def_id, Some(BorrowckConsumer::new(options)));
 
+    if let Some(x) = def_id_of_interest {
+        assert_eq!(Some(root_def_id), tcx.typeck_root_def_id(x.to_def_id()).as_local());
+    }
     // See comment in `rustc_borrowck::mir_borrowck`
     let nested_bodies = tcx.nested_bodies_within(root_def_id);
     for def_id in nested_bodies {
-        root_cx.get_or_insert_nested(def_id);
+        if def_id_of_interest.is_none_or(|x| x == def_id) {
+            root_cx.get_or_insert_nested(def_id);
+        }
     }
 
-    do_mir_borrowck(&mut root_cx, root_def_id);
+    if def_id_of_interest.is_none_or(|x| x == root_def_id) {
+        do_mir_borrowck(&mut root_cx, root_def_id);
+    }
     root_cx.consumer.unwrap().bodies
 }

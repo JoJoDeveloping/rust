@@ -478,6 +478,10 @@ impl<'tcx> RegionInferenceContext<'tcx> {
         self.scc_values.region_value_str(scc)
     }
 
+    pub fn inferred_values(&self) -> &RegionValues<ConstraintSccIndex> {
+        &self.scc_values
+    }
+
     pub(crate) fn placeholders_contained_in(
         &self,
         r: RegionVid,

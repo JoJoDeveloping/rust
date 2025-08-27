@@ -22,7 +22,7 @@ rustc_index::newtype_index! {
 /// An individual element in a region value -- the value of a
 /// particular region variable consists of a set of these elements.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum RegionElement {
+pub enum RegionElement {
     /// A point in the control-flow graph.
     Location(Location),
 
@@ -239,7 +239,7 @@ impl PlaceholderIndices {
 /// Here, the variable `'0` would contain the free region `'a`,
 /// because (since it is returned) it must live for at least `'a`. But
 /// it would also contain various points from within the function.
-pub(crate) struct RegionValues<N: Idx> {
+pub struct RegionValues<N: Idx> {
     location_map: Rc<DenseLocationMap>,
     placeholder_indices: PlaceholderIndices,
     points: SparseIntervalMatrix<N, PointIndex>,
@@ -349,8 +349,13 @@ impl<N: Idx> RegionValues<N> {
     }
 
     /// Returns just the universal regions that are contained in a given region's value.
-    pub(crate) fn universal_regions_outlived_by(&self, r: N) -> impl Iterator<Item = RegionVid> {
+    pub fn universal_regions_outlived_by(&self, r: N) -> impl Iterator<Item = RegionVid> {
         self.free_regions.row(r).into_iter().flat_map(|set| set.iter())
+    }
+
+    /// Checks if a region contains a certain location
+    pub fn is_live_at(&self, r: N, loc: Location) -> bool {
+        loc.contained_in_row(self, r)
     }
 
     /// Returns all the elements contained in a given region's value.
@@ -366,7 +371,7 @@ impl<N: Idx> RegionValues<N> {
     }
 
     /// Returns all the elements contained in a given region's value.
-    pub(crate) fn elements_contained_in(&self, r: N) -> impl Iterator<Item = RegionElement> {
+    pub fn elements_contained_in(&self, r: N) -> impl Iterator<Item = RegionElement> {
         let points_iter = self.locations_outlived_by(r).map(RegionElement::Location);
 
         let free_regions_iter =

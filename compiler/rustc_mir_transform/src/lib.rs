@@ -13,9 +13,10 @@
 
 use hir::ConstContext;
 use required_consts::RequiredConstsVisitor;
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, get_bodies_with_borrowck_facts};
 use rustc_const_eval::check_consts::{self, ConstCx};
 use rustc_const_eval::util;
-use rustc_data_structures::fx::FxIndexSet;
+use rustc_data_structures::fx::{FxHashMap, FxIndexSet};
 use rustc_data_structures::steal::Steal;
 use rustc_hir as hir;
 use rustc_hir::def::{CtorKind, DefKind};
@@ -149,6 +150,7 @@ declare_passes! {
     mod jump_threading : JumpThreading;
     mod known_panics_lint : KnownPanicsLint;
     mod large_enums : EnumSizeOpt;
+    mod lifetime_end : InsertLifetimeEndInformation;
     mod lower_intrinsics : LowerIntrinsics;
     mod lower_slice_len : LowerSliceLenCalls;
     mod match_branches : MatchBranchSimplification;
@@ -510,8 +512,23 @@ fn mir_drops_elaborated_and_const_checked(tcx: TyCtxt<'_>, def: LocalDefId) -> &
         }
     }
 
+    let needs_lifetime_info =
+        tcx.sess.opts.unstable_opts.mir_emit_lifetime_information && !tcx.is_synthetic_mir(def);
+
+    // do this here, because this no longer works one the body is stolen below.
+    let borrow_checked_bodies = if needs_lifetime_info && tainted_by_errors.is_none() {
+        Some(get_bodies_with_borrowck_facts(
+            tcx,
+            tcx.typeck_root_def_id(def.to_def_id()).expect_local(),
+            Some(def),
+            rustc_borrowck::consumers::ConsumerOptions::RegionInferenceContext,
+        ))
+    } else {
+        None
+    };
+
     let (body, _) = tcx.mir_promoted(def);
-    let mut body = body.steal();
+    let mut body = if needs_lifetime_info { body.borrow().clone() } else { body.steal() };
 
     if let Some(error_reported) = tainted_by_errors {
         body.tainted_by_errors = Some(error_reported);
@@ -535,17 +552,24 @@ fn mir_drops_elaborated_and_const_checked(tcx: TyCtxt<'_>, def: LocalDefId) -> &
         _ => {}
     }
 
-    run_analysis_to_runtime_passes(tcx, &mut body);
+    run_analysis_to_runtime_passes(tcx, borrow_checked_bodies, &mut body);
 
     tcx.alloc_steal_mir(body)
 }
 
 // Made public so that `mir_drops_elaborated_and_const_checked` can be overridden
 // by custom rustc drivers, running all the steps by themselves. See #114628.
-pub fn run_analysis_to_runtime_passes<'tcx>(tcx: TyCtxt<'tcx>, body: &mut Body<'tcx>) {
+pub fn run_analysis_to_runtime_passes<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    borrow_checked_bodies: Option<FxHashMap<LocalDefId, BodyWithBorrowckFacts<'tcx>>>,
+    body: &mut Body<'tcx>,
+) {
     assert!(body.phase == MirPhase::Analysis(AnalysisPhase::Initial));
     let did = body.source.def_id();
 
+    debug!("analysis_mir_instrumentation({:?})", did);
+    run_analysis_instrumentation_passes(tcx, borrow_checked_bodies, body);
+    assert!(body.phase == MirPhase::Analysis(AnalysisPhase::Initial));
     debug!("analysis_mir_cleanup({:?})", did);
     run_analysis_cleanup_passes(tcx, body);
     assert!(body.phase == MirPhase::Analysis(AnalysisPhase::PostCleanup));
@@ -575,6 +599,19 @@ pub fn run_analysis_to_runtime_passes<'tcx>(tcx: TyCtxt<'tcx>, body: &mut Body<'
 }
 
 // FIXME(JakobDegen): Can we make these lists of passes consts?
+
+/// These passes need to start with the _same_ MIR as what is used in mir_borrowck, since they
+/// can modify the MIR based on the precise location information of regions inferred therein.
+fn run_analysis_instrumentation_passes<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    borrow_checked_bodies: Option<FxHashMap<LocalDefId, BodyWithBorrowckFacts<'tcx>>>,
+    body: &mut Body<'tcx>,
+) {
+    let passes: &[&dyn MirPass<'tcx>] =
+        &[&lifetime_end::InsertLifetimeEndInformation(borrow_checked_bodies)];
+
+    pm::run_passes(tcx, body, passes, None, pm::Optimizations::Allowed);
+}
 
 /// After this series of passes, no lifetime analysis based on borrowing can be done.
 fn run_analysis_cleanup_passes<'tcx>(tcx: TyCtxt<'tcx>, body: &mut Body<'tcx>) {
@@ -799,7 +836,7 @@ fn promoted_mir(tcx: TyCtxt<'_>, def: LocalDefId) -> &IndexVec<Promoted, Body<'_
     let mut promoted = tcx.mir_promoted(def).1.steal();
 
     for body in &mut promoted {
-        run_analysis_to_runtime_passes(tcx, body);
+        run_analysis_to_runtime_passes(tcx, None, body);
     }
 
     tcx.arena.alloc(promoted)
