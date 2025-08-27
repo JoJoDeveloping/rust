@@ -719,6 +719,7 @@ fn construct_error(tcx: TyCtxt<'_>, def_id: LocalDefId, guar: ErrorGuaranteed) -
         inputs.len(),
         vec![],
         span,
+        IndexVec::new(),
         coroutine,
         Some(guar),
     )
@@ -801,6 +802,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             self.arg_count.clone(),
             self.var_debug_info.clone(),
             self.fn_span.clone(),
+            IndexVec::new(),
             self.coroutine.clone(),
             None,
         );
@@ -822,6 +824,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             self.arg_count,
             self.var_debug_info,
             self.fn_span,
+            IndexVec::new(),
             self.coroutine,
             None,
         );

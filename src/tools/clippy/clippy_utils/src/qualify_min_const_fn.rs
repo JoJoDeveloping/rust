@@ -253,7 +253,8 @@ fn check_statement<'tcx>(
         | StatementKind::Coverage(..)
         | StatementKind::ConstEvalCounter
         | StatementKind::BackwardIncompatibleDropHint { .. }
-        | StatementKind::Nop => Ok(()),
+        | StatementKind::Nop
+        | StatementKind::LocalLifetimeEnd(..) => Ok(()),
     }
 }
 
@@ -357,8 +358,14 @@ fn check_terminator<'tcx>(
             target: _,
             unwind: _,
             fn_span: _,
+            starting_lifetimes: _,
         }
-        | TerminatorKind::TailCall { func, args, fn_span: _ } => {
+        | TerminatorKind::TailCall {
+            func,
+            args,
+            fn_span: _,
+            starting_lifetimes: _,
+        } => {
             let fn_ty = func.ty(body, cx.tcx);
             if let ty::FnDef(fn_def_id, fn_substs) = fn_ty.kind() {
                 // FIXME: when analyzing a function with generic parameters, we may not have enough information to

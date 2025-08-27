@@ -194,6 +194,7 @@ impl<'a, 'tcx> ParseCtxt<'a, 'tcx> {
                         CallSource::OverloadedOperator
                     },
                     fn_span: *fn_span,
+                    starting_lifetimes: None
                 })
             },
         )
@@ -213,6 +214,7 @@ impl<'a, 'tcx> ParseCtxt<'a, 'tcx> {
                     func: fun,
                     args,
                     fn_span: *fn_span,
+                    starting_lifetimes: None
                 })
             },
         )
@@ -309,7 +311,7 @@ impl<'a, 'tcx> ParseCtxt<'a, 'tcx> {
             | ExprKind::ConstParam { .. }
             | ExprKind::ConstBlock { .. } => {
                 Ok(Operand::Constant(Box::new(
-                    as_constant_inner(expr, |_| None, self.tcx)
+                    as_constant_inner(expr, |_| None,self.tcx)
                 )))
             },
             _ => self.parse_place(expr_id).map(Operand::Copy),

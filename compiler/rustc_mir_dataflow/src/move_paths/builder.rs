@@ -387,7 +387,8 @@ impl<'a, 'tcx, F: Fn(Ty<'tcx>) -> bool> MoveDataBuilder<'a, 'tcx, F> {
             | StatementKind::Intrinsic(..)
             | StatementKind::ConstEvalCounter
             | StatementKind::BackwardIncompatibleDropHint { .. }
-            | StatementKind::Nop => {}
+            | StatementKind::Nop
+            | StatementKind::LocalLifetimeEnd(..) => {}
         }
     }
 
@@ -463,6 +464,7 @@ impl<'a, 'tcx, F: Fn(Ty<'tcx>) -> bool> MoveDataBuilder<'a, 'tcx, F> {
                 unwind: _,
                 call_source: _,
                 fn_span: _,
+                starting_lifetimes: _,
             } => {
                 self.gather_operand(func);
                 for arg in args {

@@ -568,6 +568,16 @@ fn write_mir_intro<'tcx>(
 
     write_scope_tree(tcx, body, &scope_tree, w, OUTERMOST_SOURCE_SCOPE, 1, options)?;
 
+    // Add an empty line before the first lifetime info is printed.
+    if !body.local_lifetimes.is_empty() {
+        writeln!(w)?;
+        writeln!(w, "    local lifetimes: {{")?;
+        for (lft, data) in body.local_lifetimes.iter_enumerated() {
+            writeln!(w, "        {lft:?}: {data:?}")?;
+        }
+        writeln!(w, "    }}")?;
+    }
+
     // Add an empty line before the first block is printed.
     writeln!(w)?;
 
@@ -850,6 +860,9 @@ impl Debug for Statement<'_> {
                 // which is to report breaking change in drop order by Edition 2024
                 write!(fmt, "BackwardIncompatibleDropHint({place:?})")
             }
+            LocalLifetimeEnd(ref lft) => {
+                write!(fmt, "LocalLifetimeEnd({lft:?})")
+            }
         }
     }
 }
@@ -933,7 +946,7 @@ impl<'tcx> TerminatorKind<'tcx> {
             Drop { place, async_fut: Some(async_fut), .. } => {
                 write!(fmt, "async drop({place:?}; poll={async_fut:?})")
             }
-            Call { func, args, destination, .. } => {
+            Call { func, args, destination, starting_lifetimes, .. } => {
                 write!(fmt, "{destination:?} = ")?;
                 write!(fmt, "{func:?}(")?;
                 for (index, arg) in args.iter().enumerate() {
@@ -942,9 +955,13 @@ impl<'tcx> TerminatorKind<'tcx> {
                     }
                     write!(fmt, "{:?}", arg.node)?;
                 }
-                write!(fmt, ")")
+                write!(fmt, ")")?;
+                if let Some(starting_lifetimes) = starting_lifetimes {
+                    write!(fmt, " (starting {starting_lifetimes:?})")?;
+                }
+                Ok(())
             }
-            TailCall { func, args, .. } => {
+            TailCall { func, args, starting_lifetimes, .. } => {
                 write!(fmt, "tailcall {func:?}(")?;
                 for (index, arg) in args.iter().enumerate() {
                     if index > 0 {
@@ -952,7 +969,11 @@ impl<'tcx> TerminatorKind<'tcx> {
                     }
                     write!(fmt, "{:?}", arg.node)?;
                 }
-                write!(fmt, ")")
+                write!(fmt, ")")?;
+                if let Some(starting_lifetimes) = starting_lifetimes {
+                    write!(fmt, " (starting {starting_lifetimes:?})")?;
+                }
+                Ok(())
             }
             Assert { cond, expected, msg, .. } => {
                 write!(fmt, "assert(")?;
@@ -1259,7 +1280,9 @@ impl<'tcx> Debug for Operand<'tcx> {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
         use self::Operand::*;
         match *self {
-            Constant(ref a) => write!(fmt, "{a:?}"),
+            Constant(ref a) => {
+                write!(fmt, "{a:?}")
+            }
             Copy(ref place) => write!(fmt, "copy {place:?}"),
             Move(ref place) => write!(fmt, "move {place:?}"),
         }

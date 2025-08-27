@@ -8,6 +8,7 @@ use std::hash::Hash;
 
 use rustc_abi::{Align, Size};
 use rustc_apfloat::{Float, FloatConvert};
+use rustc_middle::mir::LocalLifetime;
 use rustc_middle::query::TyCtxtAt;
 use rustc_middle::ty::Ty;
 use rustc_middle::ty::layout::TyAndLayout;
@@ -616,6 +617,13 @@ pub trait Machine<'tcx>: Sized {
     #[inline(always)]
     fn enter_trace_span(_span: impl FnOnce() -> tracing::Span) -> impl EnteredTraceSpan {
         ()
+    }
+
+    fn end_local_lifetime(
+        _ecx: &mut InterpCx<'tcx, Self>,
+        _lfts: &[LocalLifetime],
+    ) -> InterpResult<'tcx> {
+        interp_ok(())
     }
 }
 

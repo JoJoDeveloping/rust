@@ -61,6 +61,7 @@ fn build_poll_call<'tcx>(
         unwind,
         call_source: CallSource::Misc,
         fn_span: DUMMY_SP,
+        starting_lifetimes: None, //FIXME coroutine
     };
     insert_term_block(body, call)
 }
@@ -114,6 +115,7 @@ fn build_pin_fut<'tcx>(
                 unwind,
                 call_source: CallSource::Misc,
                 fn_span: span,
+                starting_lifetimes: None, //FIXME coroutine
             },
         }),
         false,

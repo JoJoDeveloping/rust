@@ -416,6 +416,7 @@ fn new_body<'tcx>(
         arg_count,
         vec![],
         span,
+        IndexVec::new(),
         None,
         // FIXME(compiler-errors): is this correct?
         None,
@@ -678,6 +679,7 @@ impl<'tcx> CloneShimBuilder<'tcx> {
                 unwind: UnwindAction::Cleanup(cleanup),
                 call_source: CallSource::Normal,
                 fn_span: self.span,
+                starting_lifetimes: None, //FIXME clone shim
             },
             false,
         );
@@ -974,6 +976,7 @@ fn build_call_shim<'tcx>(
             },
             call_source: CallSource::Misc,
             fn_span: span,
+            starting_lifetimes: None, //FIXME call shim (easy)
         },
         false,
     );

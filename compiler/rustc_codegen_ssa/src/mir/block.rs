@@ -1443,6 +1443,7 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
                 unwind,
                 call_source: _,
                 fn_span,
+                starting_lifetimes: _,
             } => self.codegen_call_terminator(
                 helper,
                 bx,
@@ -1456,20 +1457,24 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
                 CallKind::Normal,
                 mergeable_succ(),
             ),
-            mir::TerminatorKind::TailCall { ref func, ref args, fn_span } => self
-                .codegen_call_terminator(
-                    helper,
-                    bx,
-                    terminator,
-                    func,
-                    args,
-                    mir::Place::from(mir::RETURN_PLACE),
-                    None,
-                    mir::UnwindAction::Unreachable,
-                    fn_span,
-                    CallKind::Tail,
-                    mergeable_succ(),
-                ),
+            mir::TerminatorKind::TailCall {
+                ref func,
+                ref args,
+                fn_span,
+                starting_lifetimes: _,
+            } => self.codegen_call_terminator(
+                helper,
+                bx,
+                terminator,
+                func,
+                args,
+                mir::Place::from(mir::RETURN_PLACE),
+                None,
+                mir::UnwindAction::Unreachable,
+                fn_span,
+                CallKind::Tail,
+                mergeable_succ(),
+            ),
             mir::TerminatorKind::CoroutineDrop | mir::TerminatorKind::Yield { .. } => {
                 bug!("coroutine ops in codegen")
             }

@@ -406,6 +406,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
                             CallSource::OverloadedOperator
                         },
                         fn_span,
+                        starting_lifetimes: None,
                     },
                 );
                 this.diverge_from(block);
@@ -449,6 +450,7 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
                             unwind: UnwindAction::Unreachable,
                             call_source: CallSource::Use,
                             fn_span: expr_span,
+                            starting_lifetimes: None,
                         },
                     );
                     success.unit()

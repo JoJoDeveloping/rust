@@ -470,6 +470,7 @@ macro_rules! make_mir_visitor {
                     }
                     StatementKind::ConstEvalCounter => {}
                     StatementKind::Nop => {}
+                    StatementKind::LocalLifetimeEnd(_lft) => {}
                 }
             }
 
@@ -555,6 +556,7 @@ macro_rules! make_mir_visitor {
                         unwind: _,
                         call_source: _,
                         fn_span,
+                        starting_lifetimes: _,
                     } => {
                         self.visit_span($(& $mutability)? *fn_span);
                         self.visit_operand(func, location);
@@ -568,7 +570,7 @@ macro_rules! make_mir_visitor {
                         );
                     }
 
-                    TerminatorKind::TailCall { func, args, fn_span } => {
+                    TerminatorKind::TailCall { func, args, fn_span, starting_lifetimes: _ } => {
                         self.visit_span($(& $mutability)? *fn_span);
                         self.visit_operand(func, location);
                         for arg in args {
@@ -818,7 +820,7 @@ macro_rules! make_mir_visitor {
                             location
                         );
                     }
-                    Operand::Constant(constant) => {
+                    Operand::Constant(constant)=> {
                         self.visit_const_operand(constant, location);
                     }
                 }

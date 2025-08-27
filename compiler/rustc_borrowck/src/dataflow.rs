@@ -586,7 +586,8 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for Borrows<'_, 'tcx> {
             | mir::StatementKind::Intrinsic(..)
             | mir::StatementKind::ConstEvalCounter
             | mir::StatementKind::BackwardIncompatibleDropHint { .. }
-            | mir::StatementKind::Nop => {}
+            | mir::StatementKind::Nop
+            | mir::StatementKind::LocalLifetimeEnd(..) => {}
         }
     }
 

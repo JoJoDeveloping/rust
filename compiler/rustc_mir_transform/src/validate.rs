@@ -336,6 +336,9 @@ impl<'a, 'tcx> Visitor<'tcx> for CfgChecker<'a, 'tcx> {
                     );
                 }
             }
+            StatementKind::LocalLifetimeEnd(..) => {
+                // trivially valid
+            }
             StatementKind::Assign(..)
             | StatementKind::StorageLive(_)
             | StatementKind::StorageDead(_)
@@ -1529,6 +1532,10 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
                 if matches!(kind, RetagKind::TwoPhase) {
                     self.fail(location, format!("explicit `{kind:?}` is forbidden"));
                 }
+            }
+
+            StatementKind::LocalLifetimeEnd(..) => {
+                // trivially valid
             }
             StatementKind::StorageLive(_)
             | StatementKind::StorageDead(_)

@@ -1730,7 +1730,8 @@ impl<'tcx> Visitor<'tcx> for EnsureCoroutineFieldAssignmentsNeverAlias<'_> {
             | StatementKind::Intrinsic(..)
             | StatementKind::ConstEvalCounter
             | StatementKind::BackwardIncompatibleDropHint { .. }
-            | StatementKind::Nop => {}
+            | StatementKind::Nop
+            | StatementKind::LocalLifetimeEnd(..) => {}
         }
     }
 
@@ -1746,6 +1747,7 @@ impl<'tcx> Visitor<'tcx> for EnsureCoroutineFieldAssignmentsNeverAlias<'_> {
                 unwind: _,
                 call_source: _,
                 fn_span: _,
+                starting_lifetimes: _,
             } => {
                 self.check_assigned_place(*destination, |this| {
                     this.visit_operand(func, location);

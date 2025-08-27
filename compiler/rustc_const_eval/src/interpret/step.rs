@@ -157,6 +157,9 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
 
             // Only used for temporary lifetime lints
             BackwardIncompatibleDropHint { .. } => {}
+
+            // Used for Contract Checking in Miri
+            LocalLifetimeEnd(lfts) => M::end_local_lifetime(self, &lfts[..])?,
         }
 
         interp_ok(())
@@ -548,6 +551,7 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
                 unwind,
                 call_source: _,
                 fn_span: _,
+                starting_lifetimes: _,
             } => {
                 let old_stack = self.frame_idx();
                 let old_loc = self.frame().loc;
@@ -572,7 +576,7 @@ impl<'tcx, M: Machine<'tcx>> InterpCx<'tcx, M> {
                 }
             }
 
-            TailCall { ref func, ref args, fn_span: _ } => {
+            TailCall { ref func, ref args, fn_span: _, starting_lifetimes: _ } => {
                 let old_frame_idx = self.frame_idx();
 
                 let EvaluatedCalleeAndArgs { callee, args, fn_sig, fn_abi, with_caller_location } =

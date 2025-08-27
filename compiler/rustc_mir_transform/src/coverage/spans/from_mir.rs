@@ -63,7 +63,8 @@ fn filtered_statement_span(statement: &Statement<'_>) -> Option<Span> {
         | StatementKind::StorageDead(_)
         | StatementKind::ConstEvalCounter
         | StatementKind::BackwardIncompatibleDropHint { .. }
-        | StatementKind::Nop => None,
+        | StatementKind::Nop
+        | StatementKind::LocalLifetimeEnd(..) => None,
 
         // FIXME(#78546): MIR InstrumentCoverage - Can the source_info.span for `FakeRead`
         // statements be more consistent?

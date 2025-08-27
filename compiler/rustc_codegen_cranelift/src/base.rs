@@ -487,6 +487,7 @@ fn codegen_fn_body(fx: &mut FunctionCx<'_, '_, '_>, start_block: Block) {
                 fn_span,
                 unwind,
                 call_source: _,
+                starting_lifetimes: _,
             } => {
                 fx.tcx.prof.generic_activity("codegen call").run(|| {
                     crate::abi::codegen_terminator_call(
@@ -946,7 +947,8 @@ fn codegen_stmt<'tcx>(fx: &mut FunctionCx<'_, '_, 'tcx>, cur_block: Block, stmt:
         | StatementKind::Retag { .. }
         | StatementKind::PlaceMention(..)
         | StatementKind::BackwardIncompatibleDropHint { .. }
-        | StatementKind::AscribeUserType(..) => {}
+        | StatementKind::AscribeUserType(..)
+        | StatementKind::LocalLifetimeEnd(..) => {}
 
         StatementKind::Coverage { .. } => unreachable!(),
         StatementKind::Intrinsic(ref intrinsic) => match &**intrinsic {

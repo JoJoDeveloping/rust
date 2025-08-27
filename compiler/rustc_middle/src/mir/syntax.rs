@@ -18,6 +18,7 @@ use smallvec::SmallVec;
 
 use super::{BasicBlock, Const, Local, UserTypeProjection};
 use crate::mir::coverage::CoverageKind;
+use crate::mir::{CallLifetimeInstantiation, LocalLifetime};
 use crate::ty::adjustment::PointerCoercion;
 use crate::ty::{self, GenericArgsRef, List, Region, Ty, UserTypeAnnotationIndex};
 
@@ -364,6 +365,10 @@ pub enum StatementKind<'tcx> {
     ///
     /// This writes `uninit` bytes to the entire place.
     Deinit(Box<Place<'tcx>>),
+
+    /// Marks where a local lifetime ends. This has no semantics (i.e. is a NOP), but is used by some external
+    /// consumers.
+    LocalLifetimeEnd(Box<Vec<LocalLifetime>>),
 
     /// `StorageLive` and `StorageDead` statements mark the live range of a local.
     ///
@@ -830,6 +835,9 @@ pub enum TerminatorKind<'tcx> {
         /// This `Span` is the span of the function, without the dot and receiver
         /// e.g. `foo(a, b)` in `x.foo(a, b)`
         fn_span: Span,
+        /// The local lifetimes starting here.
+        /// One for each free lifetime in the callee.
+        starting_lifetimes: Option<Box<CallLifetimeInstantiation>>,
     },
 
     /// Tail call.
@@ -860,6 +868,9 @@ pub enum TerminatorKind<'tcx> {
         /// This `Span` is the span of the function, without the dot and receiver
         /// (e.g. `foo(a, b)` in `x.foo(a, b)`
         fn_span: Span,
+        /// The local lifetimes starting here.
+        /// One for each free lifetime in the callee.
+        starting_lifetimes: Option<Box<CallLifetimeInstantiation>>,
     },
 
     /// Evaluates the operand, which must have type `bool`. If it is not equal to `expected`,
@@ -1742,6 +1753,6 @@ mod size_asserts {
     static_assert_size!(PlaceElem<'_>, 24);
     static_assert_size!(Rvalue<'_>, 40);
     static_assert_size!(StatementKind<'_>, 16);
-    static_assert_size!(TerminatorKind<'_>, 80);
+    static_assert_size!(TerminatorKind<'_>, 88);
     // tidy-alphabetical-end
 }

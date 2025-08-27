@@ -600,7 +600,8 @@ impl WriteInfo {
             | StatementKind::StorageLive(_)
             | StatementKind::StorageDead(_)
             | StatementKind::BackwardIncompatibleDropHint { .. }
-            | StatementKind::PlaceMention(_) => {}
+            | StatementKind::PlaceMention(_)
+            | StatementKind::LocalLifetimeEnd(..) => {}
             StatementKind::FakeRead(_) | StatementKind::AscribeUserType(_, _) => {
                 bug!("{:?} not found in this MIR phase", statement)
             }

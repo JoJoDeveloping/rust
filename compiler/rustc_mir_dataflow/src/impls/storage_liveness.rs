@@ -172,7 +172,8 @@ impl<'tcx> Analysis<'tcx> for MaybeRequiresStorage<'_, 'tcx> {
             | StatementKind::Retag(..)
             | StatementKind::Intrinsic(..)
             | StatementKind::BackwardIncompatibleDropHint { .. }
-            | StatementKind::StorageLive(..) => {}
+            | StatementKind::StorageLive(..)
+            | StatementKind::LocalLifetimeEnd(..) => {}
         }
     }
 

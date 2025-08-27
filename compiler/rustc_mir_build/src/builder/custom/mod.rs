@@ -54,6 +54,7 @@ pub(super) fn build_custom_mir<'tcx>(
         spread_arg: None,
         var_debug_info: Vec::new(),
         span,
+        local_lifetimes: IndexVec::new(),
         required_consts: None,
         mentioned_items: None,
         is_polymorphic: false,

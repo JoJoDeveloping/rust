@@ -48,6 +48,7 @@ impl<'tcx> StatementKind<'tcx> {
             StatementKind::ConstEvalCounter => "ConstEvalCounter",
             StatementKind::Nop => "Nop",
             StatementKind::BackwardIncompatibleDropHint { .. } => "BackwardIncompatibleDropHint",
+            StatementKind::LocalLifetimeEnd { .. } => "LocalLifetimeEnd",
         }
     }
     pub fn as_assign_mut(&mut self) -> Option<&mut (Place<'tcx>, Rvalue<'tcx>)> {

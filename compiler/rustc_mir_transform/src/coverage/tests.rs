@@ -138,6 +138,7 @@ impl<'tcx> MockBlocks<'tcx> {
                 unwind: UnwindAction::Continue,
                 call_source: CallSource::Misc,
                 fn_span: DUMMY_SP,
+                starting_lifetimes: None,
             },
         )
     }

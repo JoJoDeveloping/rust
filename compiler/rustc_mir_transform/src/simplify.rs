@@ -538,6 +538,7 @@ impl<'tcx> Visitor<'tcx> for UsedLocals {
         match statement.kind {
             StatementKind::Intrinsic(..)
             | StatementKind::Retag(..)
+            | StatementKind::LocalLifetimeEnd(..)
             | StatementKind::Coverage(..)
             | StatementKind::FakeRead(..)
             | StatementKind::PlaceMention(..)

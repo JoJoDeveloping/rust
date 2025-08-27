@@ -825,7 +825,12 @@ impl<'a, 'tcx> Promoter<'a, 'tcx> {
 
             match terminator.kind {
                 TerminatorKind::Call {
-                    mut func, mut args, call_source: desugar, fn_span, ..
+                    mut func,
+                    mut args,
+                    call_source: desugar,
+                    fn_span,
+                    starting_lifetimes,
+                    ..
                 } => {
                     // This promoted involves a function call, so it may fail to evaluate. Let's
                     // make sure it is added to `required_consts` so that failure cannot get lost.
@@ -848,6 +853,7 @@ impl<'a, 'tcx> Promoter<'a, 'tcx> {
                             target: Some(new_target),
                             call_source: desugar,
                             fn_span,
+                            starting_lifetimes,
                         },
                         source_info: SourceInfo::outermost(terminator.source_info.span),
                         ..terminator
@@ -1020,6 +1026,7 @@ fn promote_candidates<'tcx>(
             0,
             vec![],
             body.span,
+            IndexVec::new(),
             None,
             body.tainted_by_errors,
         );

@@ -26,6 +26,10 @@ use rustc_macros::{HashStable, TyDecodable, TyEncodable, TypeFoldable, TypeVisit
 use rustc_serialize::{Decodable, Encodable};
 use rustc_span::source_map::Spanned;
 use rustc_span::{DUMMY_SP, Span, Symbol};
+use rustc_type_ir::{
+    FallibleTypeFolder, Interner, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor,
+    VisitorResult,
+};
 use tracing::{debug, trace};
 
 pub use self::query::*;
@@ -267,6 +271,9 @@ pub struct Body<'tcx> {
     /// A span representing this MIR, for error reporting.
     pub span: Span,
 
+    /// Local lifetimes present within this body.
+    pub local_lifetimes: IndexVec<LocalLifetime, LocalLifetimeData<'tcx>>,
+
     /// Constants that are required to evaluate successfully for this MIR to be well-formed.
     /// We hold in this field all the constants we are not able to evaluate yet.
     /// `None` indicates that the list has not been computed yet.
@@ -345,6 +352,7 @@ impl<'tcx> Body<'tcx> {
         arg_count: usize,
         var_debug_info: Vec<VarDebugInfo<'tcx>>,
         span: Span,
+        local_lifetimes: IndexVec<LocalLifetime, LocalLifetimeData<'tcx>>,
         coroutine: Option<Box<CoroutineInfo<'tcx>>>,
         tainted_by_errors: Option<ErrorGuaranteed>,
     ) -> Self {
@@ -369,6 +377,7 @@ impl<'tcx> Body<'tcx> {
             spread_arg: None,
             var_debug_info,
             span,
+            local_lifetimes,
             required_consts: None,
             mentioned_items: None,
             is_polymorphic: false,
@@ -399,6 +408,7 @@ impl<'tcx> Body<'tcx> {
             arg_count: 0,
             spread_arg: None,
             span: DUMMY_SP,
+            local_lifetimes: IndexVec::new(),
             required_consts: None,
             mentioned_items: None,
             var_debug_info: Vec::new(),
@@ -1248,6 +1258,116 @@ pub struct VarDebugInfo<'tcx> {
 }
 
 ///////////////////////////////////////////////////////////////////////////
+// LocalLifetime
+
+rustc_index::newtype_index! {
+    /// A lifetime that occurs throughout the MIR. This is a "local" lifetime starting at some point
+    /// within the function, *not* a "free" lifetime from the method's signature.
+    ///
+    /// Certain lifetime information is encoded into the MIR. Certain instructions can "start" a
+    /// lifetime, and the `LifetimeEnd` instructions marks the end of that lifetime. A lifetime
+    /// can be started multiple times, e.g. if the instruction starting the lifetime is in a loop,
+    /// and the corresponding `LifetimeEnd` is after the loop. `LifetimeEnd` thus denotes the end
+    /// of all corresponding lifetimes.
+    ///
+    /// Each lifetime is has one starting place, and several `LifetimeEnd` annotations. Together,
+    /// the `LifetimeEnd` annotations must post-dominate the creation place.
+    ///
+    /// As a special case, a lifetime can have no `LifetimeEnd` annotations, if it continues past
+    /// the life of the function. In that case, the lifetime ends when the corresponding lifetime
+    /// ends in the function's parent.
+    #[derive(HashStable)]
+    #[encodable]
+    #[orderable]
+    #[debug_format = "lft{}"]
+    pub struct LocalLifetime {
+        const START_LIFETIME = 0;
+    }
+}
+
+impl<I: Interner> TypeVisitable<I> for LocalLifetime {
+    fn visit_with<V: TypeVisitor<I>>(&self, _visitor: &mut V) -> V::Result {
+        V::Result::output()
+    }
+}
+
+impl<I: Interner> TypeFoldable<I> for LocalLifetime {
+    fn try_fold_with<F: FallibleTypeFolder<I>>(self, _folder: &mut F) -> Result<Self, F::Error> {
+        Ok(self)
+    }
+
+    fn fold_with<F: TypeFolder<I>>(self, _folder: &mut F) -> Self {
+        self
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////
+// LocalLifetimeData and UniversalLifetimeKind
+
+/// Data for a universal lifetime, i.e. a lifetime that appears in a function signature.
+
+#[derive(Clone, Debug, TyEncodable, TyDecodable, HashStable)]
+pub enum UniversalLifetimeKind<'tcx> {
+    /// This universal lifetime is denoted by the `BoundVar` in this function's signature.
+    /// In particular, the index identifes the late-bound variable of the `defining_ty`
+    ///  of this body.
+    LateBound(ty::BoundVar),
+    /// This universal lifetime is denoted by the `usize` index in this function's signature.
+    /// In particular, the index identifes the early-bound region in this function's `defining_ty`
+    ///  (i.e. the nth free region). The corresponding `ty::Region` is also given, if available.
+    EarlyBound(usize, Option<ty::Region<'tcx>>),
+    /// This lifetime is the one for the closure end of a closure, and ends whenever that ends.
+    /// FIXME figure out when it actually ends.
+    ClosureEnv,
+}
+
+/// Data for a local lifetime.
+///
+/// See [`LocalLifetime`] for documentation on what local lifetimes are at a high level.
+#[derive(Clone, Debug, TyEncodable, TyDecodable, HashStable)]
+pub enum LocalLifetimeData<'tcx> {
+    /// This lifetime ends within the function. The precise end is indicated
+    /// by `LifetimeEnd` statements.
+    LocalEnd,
+    /// This lifetime does not end within the function. There are no `LifetimeEnd`
+    /// annotations for it, instead it ends when all the universal lifetimes in the vector end.
+    PastFunctionEnd(Box<Vec<UniversalLifetimeKind<'tcx>>>),
+    /// This lifetime does not end since it is 'static
+    Static,
+}
+
+// dummy implementations since we don't actually want to visit the regions in here
+impl<'tcx, I: Interner> TypeVisitable<I> for LocalLifetimeData<'tcx> {
+    fn visit_with<V: TypeVisitor<I>>(&self, _visitor: &mut V) -> V::Result {
+        // do nothing
+        V::Result::output()
+    }
+}
+impl<'tcx, I: Interner> TypeFoldable<I> for LocalLifetimeData<'tcx> {
+    fn fold_with<F: TypeFolder<I>>(self, _folder: &mut F) -> Self {
+        // do nothing
+        self
+    }
+
+    fn try_fold_with<F: FallibleTypeFolder<I>>(self, _folder: &mut F) -> Result<Self, F::Error> {
+        // do nothing
+        Ok(self)
+    }
+}
+
+#[derive(Clone, TyEncodable, TyDecodable, Hash, HashStable, PartialEq, TypeFoldable, TypeVisitable)]
+pub struct CallLifetimeInstantiation {
+    pub early_bound: Vec<LocalLifetime>,
+    pub late_bound: Vec<LocalLifetime>,
+}
+
+impl Debug for CallLifetimeInstantiation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "early: {:?}, late: {:?}", self.early_bound, self.late_bound)
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////
 // BasicBlock
 
 rustc_index::newtype_index! {
@@ -1666,11 +1786,11 @@ mod size_asserts {
 
     use super::*;
     // tidy-alphabetical-start
-    static_assert_size!(BasicBlockData<'_>, 128);
+    static_assert_size!(BasicBlockData<'_>, 136);
     static_assert_size!(LocalDecl<'_>, 40);
     static_assert_size!(SourceScopeData<'_>, 64);
     static_assert_size!(Statement<'_>, 32);
-    static_assert_size!(Terminator<'_>, 96);
+    static_assert_size!(Terminator<'_>, 104);
     static_assert_size!(VarDebugInfo<'_>, 88);
     // tidy-alphabetical-end
 }

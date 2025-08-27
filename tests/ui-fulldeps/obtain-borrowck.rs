@@ -131,7 +131,7 @@ thread_local! {
 
 fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> ProvidedValue<'tcx> {
     let opts = ConsumerOptions::PoloniusInputFacts;
-    let bodies_with_facts = consumers::get_bodies_with_borrowck_facts(tcx, def_id, opts);
+    let bodies_with_facts = consumers::get_bodies_with_borrowck_facts(tcx, def_id, None, opts);
     // SAFETY: The reader casts the 'static lifetime to 'tcx before using it.
     let bodies_with_facts: FxHashMap<LocalDefId, BodyWithBorrowckFacts<'static>> =
         unsafe { std::mem::transmute(bodies_with_facts) };

@@ -100,7 +100,8 @@ fn eliminate<'tcx>(tcx: TyCtxt<'tcx>, body: &mut Body<'tcx>) {
                 | StatementKind::ConstEvalCounter
                 | StatementKind::PlaceMention(_)
                 | StatementKind::BackwardIncompatibleDropHint { .. }
-                | StatementKind::Nop => {}
+                | StatementKind::Nop
+                | StatementKind::LocalLifetimeEnd(..) => {}
 
                 StatementKind::FakeRead(_) | StatementKind::AscribeUserType(_, _) => {
                     bug!("{:?} not found in this MIR phase!", statement.kind)

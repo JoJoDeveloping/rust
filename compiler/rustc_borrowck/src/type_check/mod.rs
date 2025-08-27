@@ -730,7 +730,8 @@ impl<'a, 'tcx> Visitor<'tcx> for TypeChecker<'a, 'tcx> {
             | StatementKind::Nop => {}
             StatementKind::Intrinsic(box NonDivergingIntrinsic::CopyNonOverlapping(..))
             | StatementKind::Deinit(..)
-            | StatementKind::SetDiscriminant { .. } => {
+            | StatementKind::SetDiscriminant { .. }
+            | StatementKind::LocalLifetimeEnd(..) => {
                 bug!("Statement not allowed in this MIR phase")
             }
         }

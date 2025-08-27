@@ -86,7 +86,8 @@ impl<'a, 'tcx> Visitor<'tcx> for LoanInvalidationsGenerator<'a, 'tcx> {
             | StatementKind::Retag { .. }
             | StatementKind::Deinit(..)
             | StatementKind::BackwardIncompatibleDropHint { .. }
-            | StatementKind::SetDiscriminant { .. } => {
+            | StatementKind::SetDiscriminant { .. }
+            | StatementKind::LocalLifetimeEnd(..) => {
                 bug!("Statement not allowed in this MIR phase")
             }
         }
@@ -126,6 +127,7 @@ impl<'a, 'tcx> Visitor<'tcx> for LoanInvalidationsGenerator<'a, 'tcx> {
                 unwind: _,
                 call_source: _,
                 fn_span: _,
+                starting_lifetimes: _,
             } => {
                 self.consume_operand(location, func);
                 for arg in args {

@@ -135,7 +135,8 @@ impl<'tcx> MutVisitor<'tcx> for Replacer<'_, 'tcx> {
             | StatementKind::Intrinsic(_)
             | StatementKind::Nop
             | StatementKind::BackwardIncompatibleDropHint { .. }
-            | StatementKind::ConstEvalCounter => None,
+            | StatementKind::ConstEvalCounter
+            | StatementKind::LocalLifetimeEnd(..) => None,
         };
         if let Some(place_for_ty) = place_for_ty
             && let ty = place_for_ty.ty(self.local_decls, self.tcx).ty

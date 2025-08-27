@@ -386,6 +386,7 @@ fn build_adrop_for_adrop_shim<'tcx>(
                 unwind: UnwindAction::Continue,
                 call_source: CallSource::Misc,
                 fn_span: span,
+                starting_lifetimes: None, //FIXME async drop
             },
         }),
         false,
@@ -409,6 +410,7 @@ fn build_adrop_for_adrop_shim<'tcx>(
                 unwind: UnwindAction::Continue,
                 call_source: CallSource::Misc,
                 fn_span: span,
+                starting_lifetimes: None, //FIXME async drop
             },
         }),
         false,

@@ -811,7 +811,8 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, Borrowck<'a, 'tcx>> for MirBorrowckCtxt<'a, 
             StatementKind::Nop
             | StatementKind::Retag { .. }
             | StatementKind::Deinit(..)
-            | StatementKind::SetDiscriminant { .. } => {
+            | StatementKind::SetDiscriminant { .. }
+            | StatementKind::LocalLifetimeEnd(..) => {
                 bug!("Statement not allowed in this MIR phase")
             }
         }
@@ -865,6 +866,7 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, Borrowck<'a, 'tcx>> for MirBorrowckCtxt<'a, 
                 unwind: _,
                 call_source: _,
                 fn_span: _,
+                starting_lifetimes: _,
             } => {
                 self.consume_operand(loc, (func, span), state);
                 for arg in args {
@@ -872,7 +874,7 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, Borrowck<'a, 'tcx>> for MirBorrowckCtxt<'a, 
                 }
                 self.mutate_place(loc, (*destination, span), Deep, state);
             }
-            TerminatorKind::TailCall { func, args, fn_span: _ } => {
+            TerminatorKind::TailCall { func, args, fn_span: _, starting_lifetimes: _ } => {
                 self.consume_operand(loc, (func, span), state);
                 for arg in args {
                     self.consume_operand(loc, (&arg.node, arg.span), state);
